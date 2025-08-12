@@ -1,0 +1,92 @@
+#retriever
+
+import chromadb
+from chromadb.utils import embedding_functions
+
+CHROMA_DIR = "/content/chroma_db"
+COLLECTION_NAME = "training_docs"
+
+def load_retriever():
+    """Load Chroma collection."""
+    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+    client = chromadb.PersistentClient(path=CHROMA_DIR)
+    return client.get_collection(name=COLLECTION_NAME, embedding_function=embedding_function)
+
+def retrieve_top_k(collection, query, k=3):
+    """Retrieve top-k chunks for a query."""
+    results = collection.query(
+        query_texts=[query],
+        n_results=k,
+        include=["documents", "metadatas", "distances"]
+    )
+    docs = results["documents"][0]
+    metas = results["metadatas"][0]
+    dists = results["distances"][0]
+    return [{"text": doc, "meta": meta, "distance": dist}
+            for doc, meta, dist in zip(docs, metas, dists)]
+
+# generator
+
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
+import torch, threading
+
+MODEL_NAME = "stabilityai/stablelm-zephyr-3b"
+
+def load_generator():
+    """Load tokenizer & model."""
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        device_map="auto"
+    )
+    return tokenizer, model
+
+def stream_generate(tokenizer, model, prompt, temperature=0.3, max_new_tokens=300):
+    """Stream text generation token-by-token."""
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    generation_kwargs = dict(
+        **inputs,
+        max_new_tokens=max_new_tokens,
+        do_sample=False,
+        temperature=temperature,
+        streamer=streamer
+    )
+    thread = threading.Thread(target=model.generate, kwargs=generation_kwargs)
+    thread.start()
+    partial = ""
+    for token in streamer:
+        partial += token
+        yield partial
+    thread.join()
+
+#pipeline
+from src.retriever import load_retriever, retrieve_top_k
+from src.generator import load_generator, stream_generate
+
+PROMPT_TEMPLATE = """
+You are a helpful assistant. Use ONLY the provided context to answer the question.
+If the answer is not in the context, say "I could not find the answer in the provided documents."
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
+"""
+
+def rag_pipeline(query, top_k=3, temperature=0.3, max_new_tokens=300):
+    """RAG pipeline: retrieve chunks, then generate answer."""
+    collection = load_retriever()
+    tokenizer, model = load_generator()
+
+    sources = retrieve_top_k(collection, query, k=top_k)
+    context_text = "\n\n".join([f"[{i+1}] {src['text']}" for i, src in enumerate(sources)])
+
+    prompt = PROMPT_TEMPLATE.format(context=context_text, question=query)
+    return stream_generate(tokenizer, model, prompt, temperature, max_new_tokens), sources
