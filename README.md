@@ -28,7 +28,7 @@ Interface: Streamlit
 
 Environment: Google Colab
 
-
+# How to Run
 1. Clone repo & install requirements
 
 git clone https://github.com/<your-username>/<repo-name>.git
@@ -41,17 +41,17 @@ unzip vectordb/chroma_db.zip -d .
 3. Run the Streamlit app
 streamlit run app.py
 
-How it works
-Retriever
+#How it works
+* Retriever
 Uses Chroma to search for the most relevant document chunks based on your query.
 
-Generator
+* Generator
 Feeds those chunks + your question to the LLM with a custom prompt template.
 
-Pipeline
+* Pipeline
 Combines retrieval + generation and streams the answer back to the chat.
 
- Notes
+ # Notes
 If the answer is not in the document, the bot will say so.
 
 Larger models may be slower in Colab, so I used a smaller, faster model.
@@ -63,7 +63,7 @@ iam attaching a video and screenshots of the chatbot functioanlity which shows h
 Here is the drive link for the video :
 https://drive.google.com/drive/folders/1bJDoPbxt_wRfgY2psrlK-hQjf3UyyF2e?usp=sharing
 
-OUTPUTS:
+# OUTPUTS:
 <img width="1366" height="768" alt="ss1" src="https://github.com/user-attachments/assets/9b14a443-1bea-4158-942d-6a95929e0137" />
 <img width="1366" height="768" alt="ss2" src="https://github.com/user-attachments/assets/32deffa7-e622-455a-b5ac-ebc9b2dcddbb" />
 <img width="1366" height="768" alt="ss3" src="https://github.com/user-attachments/assets/5bbcf066-cea8-4827-aded-8151dc005800" />
