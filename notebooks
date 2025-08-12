@@ -1,0 +1,185 @@
+!pip install PyPDF2
+
+import re 
+from pathlib import Path
+import PyPDF2 
+
+# cleaning text
+def cpdf(pdf_path, header_pattern = None, footer_pattern = None):
+    with open(pdf_path, 'rb') as f:
+        pdf = PyPDF2.PdfReader (f)
+        text_parts = []
+        for page in pdf.pages:
+            page_text = page.extract_text() or ""
+
+            # Remove headers if specified
+            if header_pattern:
+                page_text = re.sub(header_pattern, "", page_text, flags=re.IGNORECASE)
+
+            # Remove footers if specified
+            if footer_pattern:
+                page_text = re.sub(footer_pattern, "", page_text, flags=re.IGNORECASE)
+
+            # Remove page numbers like "Page 1 of 12"
+            page_text = re.sub(r"Page \d+ of \d+", "", page_text, flags=re.IGNORECASE)
+
+            # Normalize spaces and line breaks
+            page_text = page_text.replace("\xa0", " ")
+            page_text = re.sub(r"\n+", "\n", page_text)  # collapse multiple newlines
+            page_text = re.sub(r" +", " ", page_text)    # collapse multiple spaces
+
+            text_parts.append(page_text.strip())
+
+    return "\n\n".join(text_parts)
+
+clean_text = cpdf(
+    "AI Training Document.pdf",
+    header_pattern=r"User Agreement",   # adjust if needed
+    footer_pattern=None                 # set if there's a repeated footer
+)
+Path("/content/cleaned_ai_training_doc.txt").write_text(clean_text, encoding="utf-8")
+# it saves a text file
+print("Cleaned text saved to /content/cleaned_ai_training_doc.txt")
+print(clean_text[:500])
+
+# CHUNKING
+
+!pip install nltk
+import nltk
+nltk.download('punkt')
+nltk.download('punkt_tab')
+
+from nltk.tokenize import sent_tokenize
+def chunking(text, min_words=100, max_words=300, overlap_pct=0.2):
+    sentences = sent_tokenize(text)
+    chunks = []
+    i = 0
+    while i < len(sentences):
+        cur_chunk = []
+        cur_words = 0
+        j = i
+        while j < len(sentences) and cur_words < max_words:
+            sentence = sentences[j].strip()
+            word_count = len(sentence.split())
+            if cur_words + word_count > max_words and cur_words >= min_words:
+                break
+            cur_chunk.append(sentence)
+            cur_words += word_count
+            j += 1
+        chunk_text = " ".join(cur_chunk).strip()
+        if chunk_text:
+            chunks.append(chunk_text)
+        # Move forward with overlap
+        if j == i:
+            i += 1
+        else:
+            step = max(1, int((1 - overlap_pct) * (j - i)))
+            i += step
+    return chunks
+
+with open("/content/cleaned_ai_training_doc.txt", "r", encoding="utf-8") as f:
+    cleaned_text = f.read()
+chunks = chunking(cleaned_text, min_words=100, max_words=300, overlap_pct=0.2)
+print(f"First chunk preview:\n{chunks[0]}")
+print(f" Created {len(chunks)} chunks")
+import json
+
+with open("/content/chunks.json", "w", encoding="utf-8") as f:
+    json.dump(chunks, f, ensure_ascii=False, indent=2)
+
+print("Chunks saved to /content/chunks.json")
+
+#EMBEDDINGS
+
+!pip install -q chromadb sentence-transformers
+import json
+import chromadb
+from chromadb.utils import embedding_functions
+with open("/content/chunks.json", "r", encoding="utf-8") as f:
+    chunks = json.load(f)
+embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="all-MiniLM-L6-v2"
+)
+Create Chroma client (new API)
+client = chromadb.PersistentClient(path="/content/chroma_db")
+
+# Create or get collection
+try:
+    collection = client.get_collection(name="training_docs")
+except:
+    collection = client.create_collection(
+        name="training_docs",
+        embedding_function=embedding_function
+    )
+
+# Add chunks to Chroma
+for idx, chunk in enumerate(chunks):
+    collection.add(
+        ids=[f"chunk_{idx}"],
+        documents=[chunk],
+        metadatas=[{
+            "chunk_index": idx,
+            "word_count": len(chunk.split())
+        }]
+    )
+
+print(f" Stored {len(chunks)} chunks in Chroma")
+
+#Model fine tuning using LLaMA-3-8B
+
+!pip install -q huggingface_hub
+from huggingface_hub import login
+login(token="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")
+
+!pip install -q transformers accelerate sentencepiece
+
+!pip install -q transformers accelerate sentencepiece
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+
+MODEL_NAME = "stabilityai/stablelm-zephyr-3b"
+
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_NAME,
+    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+    device_map="auto"
+)
+
+prompt = [
+    {"role": "user", "content": "Explain Retrieval-Augmented Generation in simple terms."}
+]
+
+# Convert prompt into model input IDs
+inputs = tokenizer.apply_chat_template(
+    prompt,
+    add_generation_prompt=True,
+    return_tensors="pt"
+).to(model.device)
+
+# Generate output
+outputs = model.generate(
+    inputs,
+    max_new_tokens=128,
+    temperature=0.3
+)
+
+# Decode & print
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
+
+# Using ngrook to genarte an interface
+
+from pyngrok import ngrok
+
+# Kill any previous tunnels
+ngrok.kill()
+
+# Set your ngrok auth token from https://dashboard.ngrok.com
+NGROK_AUTH_TOKEN = "316jwHEPgiNqZpXxY5sVWp9jHdZ_6sY7wjjNeKJt3KBqGzqqE"  # <-- replace with your token
+ngrok.set_auth_token(NGROK_AUTH_TOKEN)
+
+# Open HTTP tunnel on port 8501 for Streamlit
+public_url = ngrok.connect(8501)
+print("Streamlit App URL:", public_url)
