@@ -67,5 +67,5 @@ https://drive.google.com/drive/folders/1bJDoPbxt_wRfgY2psrlK-hQjf3UyyF2e?usp=sha
 <img width="1366" height="768" alt="ss1" src="https://github.com/user-attachments/assets/9b14a443-1bea-4158-942d-6a95929e0137" />
 <img width="1366" height="768" alt="ss2" src="https://github.com/user-attachments/assets/32deffa7-e622-455a-b5ac-ebc9b2dcddbb" />
 <img width="1366" height="768" alt="ss3" src="https://github.com/user-attachments/assets/5bbcf066-cea8-4827-aded-8151dc005800" />
-<img width="1366" height="768" alt="ss4" src="https://github.com/user-attachments/asset<img width="1366" height="768" alt="ss5" src="https://github.com/user-attachments/assets/8b598757-2f42-4d13-bb3d-755dd93e7dd8" />
-s/5ac21e88-603e-442f-965b-63893ccd7371" />
+<img width="1366" height="768" alt="ss4" src="https://github.com/user-attachments/assets/c03f1289-b6fa-48d7-b7e6-2b9b357086ee" />
+<img width="1366" height="768" alt="ss5" src="https://github.com/user-attachments/assets/ecdd01d5-35eb-4834-b149-e9067a492bab" />
